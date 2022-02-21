@@ -1,0 +1,25 @@
+version: '3'
+services:
+  server:
+    build: .
+    ports:
+      - '1234:1234'
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      DATABASE_URL: postgres://postgres:root@postgres:5432
+      REDIS_CONNECTION_URL: redis://redis:6379
+      RUST_BACKTRACE: full
+  postgres:
+    image: postgres
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: validator
+  redis:
+    image: redis
+    ports:
+      - '6379:6379'
