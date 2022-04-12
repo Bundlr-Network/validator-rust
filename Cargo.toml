@@ -43,6 +43,7 @@ thiserror = "1.0"
 tokio = { version = "1.15.0", features = ["full"] }
 tracing = "0.1.29"
 url = { version = "0.2.2", optional = true }
+urlencoding = "2.1.0"
 
 [dev-dependencies.cargo-husky]
 version = "1"

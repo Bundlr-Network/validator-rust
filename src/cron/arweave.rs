@@ -1,3 +1,5 @@
+use http::uri::PathAndQuery;
+use http::Uri;
 use paris::error;
 use paris::info;
 use serde::Deserialize;
@@ -121,6 +123,14 @@ pub enum ArweaveProtocol {
     Https,
 }
 
+const TX_QUERY: &str = "query($owners: [String!], $first: Int) { transactions(owners: $owners, first: $first) { pageInfo { hasNextPage } edges { cursor node { id owner { address } signature recipient tags { name value } block { height id timestamp } } } } }";
+
+fn path_and_query(raw_query: &str) -> PathAndQuery {
+    format!("/graphql?query={}", urlencoding::encode(raw_query))
+        .parse()
+        .unwrap()
+}
+
 #[derive(Clone)]
 pub struct Arweave {
     pub uri: http::uri::Uri,
@@ -204,7 +214,6 @@ impl Arweave {
         Context: ArweaveContext<HttpClient>,
         HttpClient: Client<Request = reqwest::Request, Response = reqwest::Response>,
     {
-        let raw_query = "query($owners: [String!], $first: Int) { transactions(owners: $owners, first: $first) { pageInfo { hasNextPage } edges { cursor node { id owner { address } signature recipient tags { name value } block { height id timestamp } } } } }";
         let raw_variables = format!(
             "{{\"owners\": [\"{}\"], \"first\": {}, \"after\": {}}}",
             owner,
@@ -215,19 +224,22 @@ impl Arweave {
             }
         );
 
-        let uri = format!("{}graphql?query={}", self.get_host(), raw_query);
         let data = format!(
             "{{\"query\":\"{}\",\"variables\":{}}}",
-            raw_query, raw_variables
+            TX_QUERY, raw_variables
         );
 
-        let reqwest_client = reqwest::Client::new();
-        let body = serde_json::from_str::<ReqBody>(&data);
-        let req = reqwest_client
-            .post(&uri)
-            .json(&body.unwrap())
-            .build()
+        let mut req_url_parts = self.get_host().into_parts();
+        req_url_parts.path_and_query = Some(path_and_query(TX_QUERY));
+        let req_url = Uri::from_parts(req_url_parts).unwrap();
+
+        let req: http::Request<String> = http::request::Builder::new()
+            .method(http::Method::POST)
+            .uri(&req_url)
+            .body(serde_json::to_string(&data).unwrap())
             .unwrap();
+
+        let req: reqwest::Request = reqwest::Request::try_from(req).unwrap();
         let res = ctx.get_client().execute(req).await.unwrap();
 
         match res.status() {
@@ -261,11 +273,25 @@ mod tests {
     use std::{fs, path::Path, str::FromStr};
 
     use crate::{
-        context::test_utils::test_context_with_http_client, cron::arweave::Arweave,
-        http::reqwest::mock::MockHttpClient, key_manager::test_utils::test_keys,
+        context::test_utils::test_context_with_http_client,
+        cron::arweave::{path_and_query, Arweave, TX_QUERY},
+        http::reqwest::mock::MockHttpClient,
+        key_manager::test_utils::test_keys,
     };
-    use http::{Method, Uri};
+    use http::{uri, Method, Uri};
     use reqwest::{Request, Response};
+
+    #[test]
+    fn urlencode_arweave_query() {
+        let arweave_uri = "https://arweave.net".parse::<uri::Uri>().unwrap();
+
+        let mut parts = arweave_uri.clone().into_parts();
+        parts.path_and_query = Some(path_and_query(TX_QUERY));
+
+        let url = uri::Uri::from_parts(parts).unwrap();
+
+        assert_eq!(url.query().unwrap(), "query=query%28%24owners%3A%20%5BString%21%5D%2C%20%24first%3A%20Int%29%20%7B%20transactions%28owners%3A%20%24owners%2C%20first%3A%20%24first%29%20%7B%20pageInfo%20%7B%20hasNextPage%20%7D%20edges%20%7B%20cursor%20node%20%7B%20id%20owner%20%7B%20address%20%7D%20signature%20recipient%20tags%20%7B%20name%20value%20%7D%20block%20%7B%20height%20id%20timestamp%20%7D%20%7D%20%7D%20%7D%20%7D")
+    }
 
     #[actix_rt::test]
     async fn get_tx_data_should_return_ok() {
@@ -307,7 +333,7 @@ mod tests {
     async fn get_latest_transactions_should_return_ok() {
         let client = MockHttpClient::new(|a: &Request, b: &Request| a.url() == b.url())
             .when(|req: &Request| {
-                let url = "http://example.com/graphql?query=query($owners:%20[String!],%20$first:%20Int)%20{%20transactions(owners:%20$owners,%20first:%20$first)%20{%20pageInfo%20{%20hasNextPage%20}%20edges%20{%20cursor%20node%20{%20id%20owner%20{%20address%20}%20signature%20recipient%20tags%20{%20name%20value%20}%20block%20{%20height%20id%20timestamp%20}%20}%20}%20}%20}";
+                let url = "http://example.com/graphql?query=query%28%24owners%3A%20%5BString%21%5D%2C%20%24first%3A%20Int%29%20%7B%20transactions%28owners%3A%20%24owners%2C%20first%3A%20%24first%29%20%7B%20pageInfo%20%7B%20hasNextPage%20%7D%20edges%20%7B%20cursor%20node%20%7B%20id%20owner%20%7B%20address%20%7D%20signature%20recipient%20tags%20%7B%20name%20value%20%7D%20block%20%7B%20height%20id%20timestamp%20%7D%20%7D%20%7D%20%7D%20%7D";
                 req.method() == Method::POST && &req.url().to_string() == url
             })
             .then(|_: &Request| {
