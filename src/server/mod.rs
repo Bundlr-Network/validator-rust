@@ -18,7 +18,7 @@ use routes::index::index;
 
 use crate::{
     database::queries::QueryContext, key_manager, server::routes::sign::sign_route,
-    state::ValidatorStateAccess,
+    state::{ValidatorStateAccess, ValidatorRole},
 };
 
 #[cfg(feature = "test-routes")]
@@ -43,6 +43,17 @@ where
     info!("Starting up HTTP server...");
 
     let runtime_context = ctx.clone();
+
+    let state = runtime_context.get_validator_state().clone();
+    ctrlc::set_handler(move || {
+        if state.role() == ValidatorRole::Idle {
+            info!("Received CTRL-C signal. Shutting down as validator is idle...");
+            std::process::exit(0);
+        } else {
+            info!("Received CTRL-C signal. Can't shutdown as validator is still active!");
+        }
+    }).expect("Couldn't setup CTRL-C handler");
+
     HttpServer::new(move || {
         {
             // use double braces to enable inner attributes

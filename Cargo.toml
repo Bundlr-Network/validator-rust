@@ -18,6 +18,7 @@ bundlr-contracts-validators = { git = "https:github.com/Bundlr-Network/contracts
 bundlr-sdk = { git = "https://github.com/Bundlr-Network/rust-sdk.git", branch = "master" }
 bytes = "1.1.0"
 clap = { version = "3.1.2", features = ["derive", "env"] }
+ctrlc = "3.2.2"
 data-encoding = { version = "2.3.2", features = [ "alloc" ] }
 derive_more = "0.99.17"
 diesel = { version = "1.4.8", features = [ "postgres", "r2d2", "numeric" ] }
