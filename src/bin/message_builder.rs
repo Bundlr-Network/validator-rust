@@ -42,8 +42,8 @@ fn main() {
     let args = Args::parse();
 
     let (private_key, _, _) = {
-        let wallet = fs::read_to_string(&args.wallet).unwrap();
-        let jwk: JsonWebKey = wallet.parse().unwrap();
+        let wallet = fs::read_to_string(&args.wallet).expect("Failed to find wallet file");
+        let jwk: JsonWebKey = wallet.parse().expect("Failed to parse wallet file");
         key_manager::split_jwk(&jwk)
     };
 

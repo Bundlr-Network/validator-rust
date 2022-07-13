@@ -6,15 +6,17 @@ use diesel::{
 };
 use env_logger::Env;
 use jsonwebkey::{JsonWebKey, Key, PublicExponent, RsaPublic};
-use sysinfo::{System, SystemExt};
-use std::{fs, net::SocketAddr, str::FromStr, process};
+use log::info;
 use serde::Deserialize;
+use std::{fs, net::SocketAddr, str::FromStr};
+use sysinfo::{System, SystemExt};
 use url::Url;
 
 use validator::{
     bundler::BundlerConfig,
+    hardware::HardwareCheck,
     http::reqwest::ReqwestClient,
-    key_manager::{InMemoryKeyManager, InMemoryKeyManagerConfig}, hardware::HardwareCheck,
+    key_manager::{InMemoryKeyManager, InMemoryKeyManagerConfig},
 };
 use validator::{context::AppContext, state::generate_state};
 use validator::{cron::run_crons, server::run_server};
@@ -65,7 +67,7 @@ fn merge_configs(config: CliOpts, bundler_config: BundlerConfig) -> CliOpts {
         Some(u) => Some(u),
         None => {
             let url_string = format!("https://{}", bundler_config.gateway);
-            let url = url::Url::from_str(&url_string).unwrap();
+            let url = url::Url::from_str(&url_string).expect("Invalid Arweave gateway URL");
             Some(url)
         }
     };
@@ -111,15 +113,15 @@ pub trait IntoAsync<T> {
 #[async_trait::async_trait]
 impl IntoAsync<AppContext> for CliOpts {
     async fn into_async(&self) -> AppContext {
-        let fmt_bundler_url : String = self.bundler_url.to_string().replace(&['\"', '\''][..], "");
+        let fmt_bundler_url: String = self.bundler_url.to_string().replace(&['\"', '\''][..], "");
         dbg!(&fmt_bundler_url);
-        let n_response = reqwest::get(format!("{}public",fmt_bundler_url))
+        let n_response = reqwest::get(format!("{}public", fmt_bundler_url))
             .await
             .expect("Couldn't get public key from bundler")
             .text()
             .await
             .expect("Couldn't parse public key response from bundler");
-        
+
         let public_response = serde_json::from_str::<PublicResponse>(&n_response).unwrap();
         let bundler_jwk =
             public_only_jwk_from_rsa_n(&public_response.n).expect("Failed to decode bundler key");
@@ -162,10 +164,10 @@ fn main() -> () {
         System::print_hardware_info(&sys);
         // let enough_resources = System::has_enough_resources(&sys);
         // if !enough_resources {
-            // println!("Hardware check failed: Not enough resources, check Readme file");
-            // process::exit(1);
+        //     println!("Hardware check failed: Not enough resources, check Readme file");
+        //     process::exit(1);
         // }
-        
+
         dotenv::dotenv().ok();
 
         env_logger::init_from_env(Env::default().default_filter_or("info"));
@@ -178,12 +180,12 @@ fn main() -> () {
         let ctx = config.into_async().await;
 
         if !config.no_cron {
-            paris::info!("Running with cron");
+            info!("Running with cron");
             tokio::task::spawn_local(run_crons(ctx.clone()));
         };
 
         if !config.no_server {
-            paris::info!("Running with server");
+            info!("Running with server");
             run_server(ctx.clone()).await.unwrap()
         };
     });

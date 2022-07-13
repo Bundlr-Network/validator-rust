@@ -1,7 +1,6 @@
-use paris::error;
-use paris::info;
-use serde::Deserialize;
-use serde::Serialize;
+use log::error;
+use log::info;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
 use std::fs::File;
@@ -294,13 +293,13 @@ where
     HttpClient: crate::http::Client<Request = reqwest::Request, Response = reqwest::Response>,
 {
     let network_info = ctx.arweave().get_network_info(ctx).await.map_err(|err| {
-        paris::error!("Request for network info failed: {:?}", err);
+        error!("Request for network info failed: {:?}", err);
         CronJobError::ArweaveError(ArweaveError::UnknownErr)
     })?;
 
     let state = ctx.get_validator_state();
 
-    paris::info!("Update state: current_block={}", network_info.height);
+    info!("Update state: current_block={}", network_info.height);
     state.set_current_block(network_info.height);
 
     Ok(())

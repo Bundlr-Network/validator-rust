@@ -2,6 +2,7 @@ use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, PooledConnection};
 use diesel::result::Error;
 use diesel::QueryDsl;
+use log::error;
 extern crate diesel;
 use crate::database::models::{Bundle, NewBundle, NewTransaction, Transaction};
 use crate::database::schema::bundle::dsl::*;
@@ -22,41 +23,49 @@ where
     bundle.filter(bundle::id.eq(b_id)).first::<Bundle>(&conn)
 }
 
-pub fn insert_bundle_in_db<Context>(ctx: &Context, new_bundle: NewBundle) -> std::io::Result<()>
+pub fn insert_bundle_in_db<Context>(ctx: &Context, new_bundle: NewBundle) -> Result<(), Error>
 where
     Context: QueryContext,
 {
     let conn = ctx.get_db_connection();
-    diesel::insert_into(bundle::table)
+    if let Err(err) = diesel::insert_into(bundle::table)
         .values(&new_bundle)
         .execute(&conn)
-        .unwrap_or_else(|err| panic!("Error inserting new bundle {}: {:?}", &new_bundle.id, &err));
+    {
+        return Err(err);
+    }
 
     Ok(())
 }
 
-pub fn insert_tx_in_db<Context>(ctx: &Context, new_tx: &NewTransaction) -> std::io::Result<()>
+pub fn insert_tx_in_db<Context>(ctx: &Context, new_tx: &NewTransaction) -> Result<(), Error>
 where
     Context: QueryContext,
 {
     let conn = ctx.get_db_connection();
-    diesel::insert_into(transactions::table)
+    if let Err(err) = diesel::insert_into(transactions::table)
         .values(new_tx)
         .execute(&conn)
-        .unwrap_or_else(|_| panic!("Error inserting new tx {}", &new_tx.id));
+    {
+        return Err(err);
+    }
 
     Ok(())
 }
 
-pub async fn update_tx<Context>(ctx: &Context, tx: &NewTransaction) -> std::io::Result<()>
+pub async fn update_tx<Context>(ctx: &Context, tx: &NewTransaction) -> Result<(), Error>
 where
     Context: QueryContext,
 {
     let conn = ctx.get_db_connection();
-    diesel::update(transactions::table.find(&tx.id))
+
+    if let Err(err) = diesel::update(transactions::table.find(&tx.id))
         .set(&*tx)
         .execute(&conn)
-        .unwrap_or_else(|_| panic!("Unable to find transaction {}", &tx.id));
+    {
+        error!("Unable to find transaction {}, error: {}", &tx.id, err);
+        return Err(err);
+    }
 
     Ok(())
 }

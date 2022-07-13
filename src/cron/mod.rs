@@ -14,7 +14,7 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use futures::{join, Future};
-use paris::{error, info};
+use log::{error, info};
 use std::time::Duration;
 
 use self::{arweave::ArweaveError, error::ValidatorCronError};

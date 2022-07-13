@@ -12,7 +12,7 @@ use diesel::{
     r2d2::{ConnectionManager, PooledConnection},
     PgConnection,
 };
-use paris::info;
+use log::info;
 use routes::get_tx::get_tx;
 use routes::index::index;
 

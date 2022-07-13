@@ -3,7 +3,7 @@ use bundlr_contracts_validators::{
     slashing::Proposal as SlashProposal, slashing::Vote, State as ContractState,
 };
 use derive_more::{Display, Error};
-use paris::error;
+use log::error;
 use serde::{Deserialize, Serialize};
 use url::Url;
 

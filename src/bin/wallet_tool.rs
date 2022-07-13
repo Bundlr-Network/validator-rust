@@ -29,7 +29,8 @@ fn main() {
 
     match args.command {
         Command::Create => {
-            let rsa = Rsa::generate(2048).unwrap();
+            let rsa = Rsa::generate(2048)
+                .expect("Failed to generate enough random data for the private key");
 
             let jwk = JsonWebKey::new(Key::RSA {
                 public: RsaPublic {
@@ -50,8 +51,8 @@ fn main() {
         }
         Command::ShowAddress { ref wallet } => {
             let (_, _, address) = {
-                let wallet = fs::read_to_string(wallet).unwrap();
-                let jwk: JsonWebKey = wallet.parse().unwrap();
+                let wallet = fs::read_to_string(wallet).expect("Failed to find wallet file");
+                let jwk: JsonWebKey = wallet.parse().expect("Failed to parse wallet file");
                 key_manager::split_jwk(&jwk)
             };
 

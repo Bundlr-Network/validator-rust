@@ -17,7 +17,7 @@ use bundlr_sdk::deep_hash_sync::{deep_hash_sync, ONE_AS_BUFFER};
 use bundlr_sdk::verify::types::Item;
 use bundlr_sdk::{deep_hash::DeepHashChunk, verify::file::verify_file_bundle};
 use data_encoding::BASE64URL_NOPAD;
-use paris::{error, info};
+use log::{error, info};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Default, Debug)]
@@ -41,21 +41,23 @@ where
 {
     let arweave = ctx.arweave();
     let bundler = ctx.bundler();
-    let txs_req = arweave
+    let latest_transactions_response = arweave
         .get_latest_transactions(ctx, &bundler.address, Some(50), None)
         .await;
 
-    if let Err(r) = txs_req {
-        error!(
-            "Error occurred while getting txs from bundler address: \n {}. Error: {}",
-            bundler.address, r
-        );
-        return Err(ValidatorCronError::TxsFromAddressNotFound);
-    }
+    let latest_transactions = match latest_transactions_response {
+        Err(err) => {
+            error!(
+                "Error occurred while getting txs from bundler address: \n {}. Error: {}",
+                bundler.address, err
+            );
+            return Err(ValidatorCronError::TxsFromAddressNotFound);
+        }
+        Ok((latest_transactions, _, _)) => latest_transactions,
+    };
 
-    let txs_req = &txs_req.unwrap().0;
-    for bundle in txs_req {
-        let res = validate_bundle(ctx, arweave, bundle).await;
+    for bundle in latest_transactions {
+        let res = validate_bundle(ctx, arweave, &bundle).await;
         if let Err(err) = res {
             match err {
                 ValidatorCronError::TxNotFound => todo!(),
@@ -85,17 +87,13 @@ where
     KeyManager: key_manager::KeyManager,
 {
     let block_ok = check_bundle_block(bundle);
-    if let Err(err) = block_ok {
-        return Err(err);
-    }
+    let current_block = match block_ok {
+        Err(err) => return Err(err),
+        Ok(None) => return Ok(()),
+        Ok(Some(block)) => block,
+    };
 
-    let current_block = block_ok.unwrap();
-    if current_block.is_none() {
-        return Ok(());
-    } else {
-        let current_block = current_block.unwrap();
-        let _store = store_bundle(ctx, bundle, current_block);
-    }
+    store_bundle(ctx, bundle, current_block)?;
 
     let path = match arweave.get_tx_data(ctx, &bundle.id).await {
         Ok(path) => path,
@@ -119,7 +117,7 @@ where
         &bundle.id
     );
     for bundle_tx in bundle_txs {
-        let tx_receipt = verify_bundle_tx(ctx, &bundle_tx, current_block).await;
+        let tx_receipt = verify_bundle_tx(ctx, &bundle_tx, Some(current_block)).await;
         if let Err(err) = tx_receipt {
             info!("Error found in transaction {} : {}", &bundle_tx.tx_id, err);
             return Err(ValidatorCronError::TxInvalid);
@@ -191,6 +189,7 @@ where
     Context: queries::QueryContext + KeyManagerAccess<KeyManager>,
     KeyManager: key_manager::KeyManager,
 {
+    // TODO: this code needs review, especially error handling for get_tx looks suspicious
     let tx = get_tx(ctx, &bundle_tx.tx_id).await;
     let mut tx_receipt: Option<TxReceipt> = None;
     if tx.is_ok() {
@@ -215,19 +214,18 @@ where
             let tx_is_ok = verify_tx_receipt(ctx.get_key_manager(), &receipt).unwrap();
             // FIXME: don't use unwrap
             if tx_is_ok && receipt.block <= current_block.unwrap() {
-                if let Err(_err) = insert_tx_in_db(
-                    ctx,
-                    &NewTransaction {
-                        id: receipt.tx_id,
-                        epoch: Epoch(0),
-                        block_promised: receipt.block.into(),
-                        block_actual: current_block.map(Block),
-                        signature: receipt.signature.as_bytes().to_vec(),
-                        validated: true,
-                        bundle_id: Some(bundle_tx.tx_id.clone()),
-                    },
-                ) {
-                    // FIXME: missing error handling
+                let tx = NewTransaction {
+                    id: receipt.tx_id,
+                    epoch: Epoch(0),
+                    block_promised: receipt.block.into(),
+                    block_actual: current_block.map(Block),
+                    signature: receipt.signature.as_bytes().to_vec(),
+                    validated: true,
+                    bundle_id: Some(bundle_tx.tx_id.clone()),
+                };
+                if let Err(err) = insert_tx_in_db(ctx, &tx) {
+                    error!("Error inserting new tx {}, Error: {}", tx.id, err);
+                    // TODO: is it enough to log this error?
                 }
             } else {
                 // TODO: vote slash

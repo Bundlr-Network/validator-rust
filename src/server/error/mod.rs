@@ -6,7 +6,6 @@ use actix_web::{
 };
 use derive_more::{Display, Error};
 use openssl::error::ErrorStack;
-use paris::log;
 
 #[warn(dead_code)]
 #[derive(Debug, Display, Error)]
@@ -39,21 +38,21 @@ impl error::ResponseError for ValidatorServerError {
 
 impl From<ErrorStack> for ValidatorServerError {
     fn from(e: ErrorStack) -> Self {
-        log!("Error occurred while performing crypto function - {}", e);
+        log::error!("Error occurred while performing crypto function - {}", e);
         ValidatorServerError::InternalError
     }
 }
 
 impl From<JoinError> for ValidatorServerError {
     fn from(e: JoinError) -> Self {
-        log!("Error occurred while performing blocking task - {}", e);
+        log::error!("Error occurred while performing blocking task - {}", e);
         ValidatorServerError::InternalError
     }
 }
 
 impl From<diesel::result::Error> for ValidatorServerError {
     fn from(e: diesel::result::Error) -> Self {
-        log!("Error occurred while db op - {}", e);
+        log::error!("Error occurred while db op - {}", e);
         ValidatorServerError::InternalError
     }
 }

@@ -130,7 +130,7 @@ impl KeyManager for InMemoryKeyManager {
 
     // TODO: should this return Result?
     // When returning Result, caller can decide what needs to be done if
-    // this call fails, instea of panicking internally.
+    // this call fails, instead of panicking here.
     fn validator_sign(&self, data: &[u8]) -> Vec<u8> {
         let mut signer =
             sign::Signer::new(MessageDigest::sha256(), &self.validator_private).unwrap();

@@ -6,7 +6,7 @@ use bundlr_sdk::deep_hash::{deep_hash, DeepHashChunk, ONE_AS_BUFFER};
 
 use data_encoding::BASE64URL_NOPAD;
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
-use paris::error;
+use log::error;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{
