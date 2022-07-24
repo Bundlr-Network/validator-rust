@@ -5,6 +5,7 @@ mod error;
 mod slasher;
 mod transactions;
 mod validate;
+mod clear_transactions;
 
 use crate::{
     context,
@@ -56,6 +57,12 @@ where
             validate::validate_transactions,
             30
         ),
+        create_cron(
+            &ctx,
+            "clear old transactions",
+            clear_transactions::clear_old_transactions,
+            180
+        )
     );
 }
 

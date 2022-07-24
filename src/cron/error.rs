@@ -21,3 +21,9 @@ impl From<anyhow::Error> for ValidatorCronError {
         ValidatorCronError::AddressNotFound
     }
 }
+
+impl From<diesel::result::Error> for ValidatorCronError {
+    fn from(_err: diesel::result::Error) -> ValidatorCronError {
+        ValidatorCronError::TxNotFound
+    }
+}
